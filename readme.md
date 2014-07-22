@@ -19,3 +19,5 @@ Each folder contains the data and the R scripts need to reproduce the analysis.
 - data.adult.metadata.csv Metadata
 
 - adult.growth.R R script for adult growth models
+
+- adult.survival.R R script for adult survival models
