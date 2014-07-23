@@ -2,38 +2,29 @@
 #######################################
 #### REANALYSE ALL DATA UNDER 600 M OF ELEVATION
 
-Dave.m.ss.nor <- read.csv("data.adult.csv")
+DT <- read.csv("data.adult.csv")
 
 ###### calcule données BA et basup bainf
-Dave.dec <- Dave.m.ss.nor[!is.na(Dave.m.ss.nor$PLHDAltitude) & Dave.m.ss.nor$PLHDAltitude<601,]
-Dave.dec <- Dave.dec[Dave.dec$dbh1>100,]
+DT <- DT[!is.na(DT$PLHDAltitude) &
+         DT$PLHDAltitude<601 &
+         DT$dbh1>100 &
+         !is.na(DT$dbh1) ,]
 
-Dave.mdd2<- Dave.dec[Dave.dec$DMTRSpeciesCode %in% c("DACCUP","METUMB","NOTCLI","NOTMEN","PODHAL","PRUFER","WEIRAC"),]      ### c("SCHDIG","FUCEXC")
-Dave.mdd2$DMTRSpeciesCode  <- factor(Dave.mdd2$DMTRSpeciesCode)
-Dave.md2 <- Dave.mdd2
+### keep only the 7 species used in SORTIE NZ T
+DT.sel <- DT[DT$DMTRSpeciesCode %in%
+         c("DACCUP","METUMB","NOTCLI",
+           "NOTMEN","PODHAL","PRUFER",
+           "WEIRAC"),]
+DT.sel$DMTRSpeciesCode  <- factor(DT.sel$DMTRSpeciesCode)
 
-vecbasup <- rep(0,length(Dave.md2$dbh1))
-vecbainf <- rep(0,length(Dave.md2$dbh1))
-
-
-basal.plot <- tapply(pi*(Dave.dec$dbh1/10)^2, INDEX= Dave.dec$pol.idi.y,FUN=sum)
-basal.plot.10 <- tapply(pi*(Dave.dec$dbh1[Dave.dec$dbh1>100]/10)^2, INDEX= Dave.dec$pol.idi.y[Dave.dec$dbh1>100],FUN=sum)
-data.basal.plot <- data.frame(pol.idi.y = names(basal.plot), BA.p= basal.plot/1000,BA.p.10 = basal.plot.10 )
-
-Dave.md2T <- data.frame(Dave.md2,bas=vecbasup/1000,bai=vecbainf/1000)
-
-Dave.md2T2 <-  merge(Dave.md2T, data.basal.plot,by="pol.idi.y")
-
-
-
-Dave.dec.m <- Dave.mdd2[,]
+Dave.dec.m <- DT.sel[,]
 
 
 ####################
 ###### Analysis
 ####################
 
-library( neighparam )
+library( likelihood )
 
 
 
@@ -44,7 +35,6 @@ surv[Dave.dec.m$dbh2==0] <- 0
 Dave.dec.s <- data.frame(Dave.dec.m,surv=surv,year=Dave.dec.m$year2- Dave.dec.m$year1)
 split.ns <- split(Dave.dec.s,  Dave.dec.s$DMTRSpeciesCode)
 
-length(split.ns[[1]][,1])
 #################
 ##### ESTIMATION
 
@@ -67,40 +57,27 @@ surv<-( data.temp$surv)
 diam2 <- data.temp$dbh1/10
 year <- data.temp$year
 datatemp <- data.frame(surv=surv,diam2=diam2,year=year)
-
-par <- list(max.s = .9, x.0 = mean(datatemp$diam2),x.b=10, diam2 = "diam2",year="year")
+var <- list( diam2 = "diam2",year="year")
+par <- list(max.s = .9, x.0 = mean(datatemp$diam2),x.b=10)
 par_lo <- list(max.s =0.000 , x.0 = 2 ,x.b =0.0001)
 par_hi <- list(max.s = 1 , x.0 = 350 ,x.b= 80)
 par_step <- list(max.s=1, x.0 = 3 ,x.b= 2)
-par$x <- "surv"
+var$x <- "surv"
 ## Mean in normal PDF
-par$prob <- "predicted"
-par$size <- 1
+var$prob <- "predicted"
+var$size <- 1
 ## Have it calculate log likelihood
-par$log <- TRUE
-list.Adult.S.1b[[i]] <- neighanneal (model = model.s1, par,
- source_data= datatemp, par_lo, par_hi, par_step, pdf= dbinom, dep_var="surv", max_iter= 50000)
+var$log <- TRUE
+list.Adult.S.1b[[i]] <- anneal (model = model.s1, par, var,
+                                source_data= datatemp, par_lo,
+                                par_hi,  pdf= dbinom, dep_var="surv",
+                                max_iter= 50000)
 title(main= names(split.ns)[i])
 }
 
-##############
-## a longer estimation lead to different estimate .....
-################"
 
 
   ## param
-  Matrix.Param.S.mALL <- matrix(0,nrow=7,ncol=5)
-  rownames(Matrix.Param.S.mALL) <- names(split.ns)
-  colnames(Matrix.Param.S.mALL) <-  c("max.s","x.0","x.b","R²","num")
-
-  for (i in 1:7)
-  {
-   Matrix.Param.S.mALL[i,1] <-  list.Adult.S.1[[i]]$best_pars[[1]]
-   Matrix.Param.S.mALL[i,2] <-  list.Adult.S.1[[i]]$best_pars[[2]]
-   Matrix.Param.S.mALL[i,3] <-  list.Adult.S.1[[i]]$best_pars[[3]]
-   Matrix.Param.S.mALL[i,4] <-  list.Adult.S.1[[i]]$R2
-   Matrix.Param.S.mALL[i,5] <-  length(split.ns[[i]][(split.ns[[i]]$dbh1/10)>10,1])
-  }
 
   Matrix.Param.S.mALLb <- matrix(0,nrow=7,ncol=5)
   rownames(Matrix.Param.S.mALLb) <- names(split.ns)
@@ -123,7 +100,7 @@ Matrix.Param.S.mALLb <- read.table("param.s.all.NEW.txt")
 #######################################
 ###### PLOTS
 
- windows()
+ x11()
    
    Dd <- 10:150
    i <- 1
@@ -153,7 +130,7 @@ Matrix.Param.S.mALLb <- read.table("param.s.all.NEW.txt")
   vec.lwd <- c(1,2,1,2,1,2,1)
   vec.lty <- c(1:5,1,6)
   
-  legend(locator(1),legend=names(split.ns)[c( 1,3:7,2)],lty=vec.lty,lwd=vec.lwd,bty="n")
+  legend(20, 0.029,legend=names(split.ns)[c( 1,3:7,2)],lty=vec.lty,lwd=vec.lwd,bty="n")
   
                                        
                                        
@@ -162,24 +139,27 @@ Matrix.Param.S.mALLb <- read.table("param.s.all.NEW.txt")
 #######################################
 #######################################
 #### for sapling survival
-### data no perturbé pb
 
-Dave.dec <- Dave.m.ss.nor[!is.na(Dave.m.ss.nor$PLHDAltitude) & Dave.m.ss.nor$PLHDAltitude<601,]
+DT <- read.csv("data.adult.csv")
 
+DT <- DT[!is.na(DT$PLHDAltitude) &
+         DT$PLHDAltitude<601 , ]
 
-Dave.mdd2<- Dave.dec[Dave.dec$DMTRSpeciesCode %in% c("DACCUP","METUMB","NOTCLI","NOTMEN","PODHAL","PRUFER","WEIRAC"),]      ### c("SCHDIG","FUCEXC")
-Dave.mdd2$DMTRSpeciesCode  <- factor(Dave.mdd2$DMTRSpeciesCode)
-Dave.dec.m <- Dave.mdd2[,]
+### keep only the 7 species used in SORTIE NZ T
+DT.sel <- DT[DT$DMTRSpeciesCode %in%
+         c("DACCUP","METUMB","NOTCLI",
+           "NOTMEN","PODHAL","PRUFER",
+           "WEIRAC"),]
+DT.sel$DMTRSpeciesCode  <- factor(DT.sel$DMTRSpeciesCode)
+
+Dave.dec.m <- DT.sel[,]
 
 
 ####################
 ###### Analysis
 ####################
 
-library( neighparam )
-
-
-
+library( likelihood )
 
 ##data
 surv <- rep(1,length(Dave.dec.m$DMTRSpeciesCode))
@@ -187,38 +167,30 @@ surv[Dave.dec.m$dbh2==0] <- 0
 Dave.dec.s <- data.frame(Dave.dec.m,surv=surv,year=Dave.dec.m$year2- Dave.dec.m$year1)
 split.ns <- split(Dave.dec.s,  Dave.dec.s$DMTRSpeciesCode)
 
+load(file="plot.pb.tot.Rdata")
 
-vec.plot.pbb <- names.pbb [!(names.pbb %in% names.pbb2)]
-
-Dave.dec.s2 <- Dave.dec.s[!(Dave.dec.s$pol.idi.y %in% plot.pb),]
-Dave.dec.s2 <- Dave.dec.s2[!(Dave.dec.s2$pol.idi.y %in% vec.plot.pbb),]
-## Exclude plot with to high mortalty rate (100%) proably due to e disturbance plots exluded (6 plots excluded).
-plot.pb ## list of plot to exclude
+Dave.dec.s2 <- Dave.dec.s[!(Dave.dec.s$pol.idi.y %in% plot.pb.tot),]
+## Exclude plot with to high mortalty rate (100%) probably due to a disturbance.
 
 split.ns2 <- split(Dave.dec.s2,  Dave.dec.s2$DMTRSpeciesCode)
 
 
 
-for (i in 1:7)
-
-{
-#windows()
-data.temp <- split.ns2[[i]][(split.ns2[[i]]$dbh1/10)<10 & (split.ns2[[i]]$dbh1/10)>5,]
-print(  names(split.ns2)[i])
-surv<-( data.temp$surv)
-print(length(surv))
-#print(length(table(factor(split.ns2[[i]]$PLHDPlotName.x))))
-#print(range(data.temp$PLHDAltitude))
-}
-
 
 ##### annual mortality rate for the small tree
+
+model.s0 <- function( max.s,year)
+{
+ pre <- (max.s)^year
+ return( pre)
+}
+
 
 list.Adult.S.0.inf10 <- vector("list",7)
 for (i in 1:7)
 
 {
-#windows()
+#x11()
 data.temp <- split.ns2[[i]][(split.ns2[[i]]$dbh1/10)<10 & (split.ns2[[i]]$dbh1/10)>5,]
 
 surv<-( data.temp$surv)
@@ -226,18 +198,19 @@ diam2 <- data.temp$dbh1/10
 year <- data.temp$year
 datatemp <- data.frame(surv=surv,diam2=diam2,year=year)
 
-par <- list(max.s = .9,year="year")
+var <-  list(year="year")
+par <- list(max.s = .9)
 par_lo <- list(max.s =0.000)
 par_hi <- list(max.s = 1)
-par_step <- list(max.s=1)
-par$x <- "surv"
+var$x <- "surv"
 ## Mean in normal PDF
-par$prob <- "predicted"
-par$size <- 1
+var$prob <- "predicted"
+var$size <- 1
 ## Have it calculate log likelihood
-par$log <- TRUE
-list.Adult.S.0.inf10[[i]] <- neighanneal (model = model.s0, par,
- source_data= datatemp, par_lo, par_hi, par_step, pdf= dbinom, dep_var="surv", max_iter= 20000)
+var$log <- TRUE
+list.Adult.S.0.inf10[[i]] <- anneal (model = model.s0, par, var,
+                                     source_data= datatemp, par_lo, par_hi,
+                                     pdf= dbinom, dep_var="surv", max_iter= 50000)
 print(i)
 }
 
@@ -245,7 +218,7 @@ list.Adult.S.0.inf10b <- vector("list",7)
 for (i in 1:7)
 
 {
-#windows()
+#x11()
 data.temp <- split.ns[[i]][(split.ns[[i]]$dbh1/10)<10 & (split.ns[[i]]$dbh1/10)>5,]
 
 surv<-( data.temp$surv)
@@ -253,18 +226,19 @@ diam2 <- data.temp$dbh1/10
 year <- data.temp$year
 datatemp <- data.frame(surv=surv,diam2=diam2,year=year)
 
-par <- list(max.s = .9,year="year")
+var <-  list(year="year")
+par <- list(max.s = .9)
 par_lo <- list(max.s =0.000)
 par_hi <- list(max.s = 1)
-par_step <- list(max.s=1)
-par$x <- "surv"
+var$x <- "surv"
 ## Mean in normal PDF
-par$prob <- "predicted"
-par$size <- 1
+var$prob <- "predicted"
+var$size <- 1
 ## Have it calculate log likelihood
-par$log <- TRUE
-list.Adult.S.0.inf10b[[i]] <- neighanneal (model = model.s0, par,
- source_data= datatemp, par_lo, par_hi, par_step, pdf= dbinom, dep_var="surv", max_iter= 50000)
+var$log <- TRUE
+list.Adult.S.0.inf10b[[i]] <- anneal(model = model.s0, par, var,
+                                     source_data= datatemp, par_lo, par_hi,
+                                     pdf= dbinom, dep_var="surv", max_iter= 50000)
 print(i)
 }
 
@@ -281,6 +255,7 @@ for (i in 1:7)
  Matrix.Param.S.SAP[i,3] <- length(list.Adult.S.0.inf10[[i]]$source_data[,1])
 }
 
+ write.table( Matrix.Param.S.SAP,file="param.sap.NEW.txt")
 
 Matrix.Param.S.SAPb <- matrix(0,nrow=7,ncol=3)
 rownames(Matrix.Param.S.SAPb) <- names(split.ns)
