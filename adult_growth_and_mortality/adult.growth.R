@@ -10,6 +10,12 @@
 ### READ DATA
 DT <- read.csv("data.adult.csv")
 
+names.col <- c('plot_year_id', 'site', 'plot_id',
+               'tree_tag', 'sp', 'transect','dbh1_mm', 'dbh2_mm',
+               'year1', 'year2', 'altitude', 'plot_area')
+names(DT) <- names.col
+write.csv(DT, 'adult_tree_growth_survival.csv', row.names = FALSE)
+
 DT <- DT[!is.na(DT$PLHDAltitude) &
          DT$PLHDAltitude<601 &
          DT$dbh1>00 &
